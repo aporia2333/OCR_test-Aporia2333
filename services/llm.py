@@ -4,6 +4,8 @@ import json
 import os
 from typing import Dict, Tuple
 
+from services.registry import MODEL_REGISTRY
+
 
 def run_mock_llm(text: str, prompt: str, output_format: str) -> Tuple[str, Dict]:
     preview = text[:2000]
@@ -25,20 +27,35 @@ def run_mock_llm(text: str, prompt: str, output_format: str) -> Tuple[str, Dict]
     return final_output, structured or {}
 
 
-def run_openai_llm(text: str, prompt: str, model: str, temperature: float, output_format: str) -> Tuple[str, Dict]:
+
+def _openai_compatible_client(provider: str):
     try:
         from openai import OpenAI
     except Exception as e:
         raise RuntimeError('未安装 openai 包，请先执行 pip install -r requirements.txt') from e
 
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        raise RuntimeError('未检测到 OPENAI_API_KEY 环境变量。')
+    provider_info = MODEL_REGISTRY.get(provider, {})
+    api_key_env = provider_info.get('env_key')
+    base_url_env = provider_info.get('base_url_env')
 
-    client = OpenAI(api_key=api_key)
+    api_key = os.getenv(api_key_env) if api_key_env else None
+    if not api_key:
+        raise RuntimeError(f'未检测到 {api_key_env} 环境变量。')
+
+    kwargs = {'api_key': api_key}
+    base_url = os.getenv(base_url_env) if base_url_env else None
+    if base_url:
+        kwargs['base_url'] = base_url
+
+    return OpenAI(**kwargs)
+
+
+
+def run_openai_compatible_llm(provider: str, text: str, prompt: str, model: str, temperature: float, output_format: str) -> Tuple[str, Dict]:
+    client = _openai_compatible_client(provider)
 
     system_instruction = (
-        "你是一个文档识别与结构化助手。严格基于用户提供的文本内容完成任务，不要编造。"
+        '你是一个文档识别与结构化助手。严格基于用户提供的文本内容完成任务，不要编造。'
     )
 
     if output_format == 'json':
@@ -91,9 +108,10 @@ def run_openai_llm(text: str, prompt: str, model: str, temperature: float, outpu
     return response.output_text, {}
 
 
+
 def run_llm(text: str, prompt: str, provider: str, model: str, temperature: float, output_format: str) -> Tuple[str, Dict]:
     if provider == 'Mock LLM':
         return run_mock_llm(text, prompt, output_format)
-    if provider == 'OpenAI':
-        return run_openai_llm(text, prompt, model, temperature, output_format)
+    if provider in ['OpenAI', 'DeepSeek', 'GLM']:
+        return run_openai_compatible_llm(provider, text, prompt, model, temperature, output_format)
     raise NotImplementedError(f'暂不支持 provider={provider}')

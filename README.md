@@ -1,13 +1,18 @@
-# OCR / LLM Workbench (Streamlit Prototype)
+# OCR / LLM Workbench (DeepSeek + PaddleOCR 版)
 
-这是一个可运行的 Streamlit 原型，支持：
+这是一个简化后的 Streamlit 原型，只保留你当前真正需要的两条外部能力：
+
+- PaddleOCR Layout Parsing
+- DeepSeek
+
+并支持：
 
 - 批量上传文件
 - 三种模式切换：纯 OCR / 纯大模型 / OCR + 大模型
 - 默认提示词模板 + 自定义提示词编辑
 - 结果预览
 - 单文件下载与 ZIP 批量下载
-- 服务端环境变量方式接入 Google / OpenAI，不在网页中直接填写 API Key
+- 服务端环境变量 / Streamlit secrets 方式接入 API
 
 ## 1. 安装
 
@@ -15,70 +20,45 @@
 pip install -r requirements.txt
 ```
 
-## 2. 配置 API Key
-
-### OpenAI
+## 2. 本地环境变量
 
 ```bash
-export OPENAI_API_KEY="your_api_key_here"
+export PADDLEOCR_API_URL="your_paddleocr_api_url"
+export PADDLEOCR_TOKEN="your_paddleocr_token"
+export DEEPSEEK_API_KEY="your_deepseek_api_key"
 ```
 
-### Google OCR
-
-二选一：
+如需自定义 DeepSeek OpenAI-compatible 地址：
 
 ```bash
-export GOOGLE_API_KEY="your_google_api_key"
+export DEEPSEEK_BASE_URL="https://api.deepseek.com"
 ```
 
-或：
+## 3. Streamlit Community Cloud secrets
 
-```bash
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+```toml
+PADDLEOCR_API_URL="your_paddleocr_api_url"
+PADDLEOCR_TOKEN="your_paddleocr_token"
+DEEPSEEK_API_KEY="your_deepseek_api_key"
+DEEPSEEK_BASE_URL="https://api.deepseek.com"
 ```
 
-Windows PowerShell 示例：
-
-```powershell
-$env:OPENAI_API_KEY="your_api_key_here"
-$env:GOOGLE_API_KEY="your_google_api_key"
-```
-
-## 3. 运行
+## 4. 运行
 
 ```bash
 streamlit run app.py
 ```
 
-## 4. 当前实现说明
+## 5. 当前实现说明
 
 ### 已实现
-- 完整 Streamlit 页面
-- 多文件上传
-- 模式切换
-- Prompt 模板与自定义 prompt
-- 服务连接状态区（Google / OpenAI）
-- 启用 / 禁用开关
-- Mock OCR
-- Mock LLM
-- OpenAI 文本后处理
+- PaddleOCR Layout Parsing 主流程
+- DeepSeek 文本后处理
+- Mock OCR / Mock LLM 兜底
 - txt / markdown / json 导出
+- 批量文件 ZIP 打包下载
 
-### 当前保留扩展接口
-在 `services/ocr.py` 中接入真实 OCR：
-- Google Document AI
-- Azure Document Intelligence
-- AWS Textract
-
-在 `services/llm.py` 中可继续扩展：
-- 直接把图片/PDF 作为多模态输入交给模型
-- 更复杂的 JSON Schema
-- 重试与限流
-
-## 5. 推荐迭代
-
-- 增加 Google OCR 的真实 SDK 接入
-- 增加任务历史记录
-- 增加 ZIP 原文件 + 结果统一打包
-- 增加数据库与对象存储
-- 增加后台任务队列
+### 说明
+- DeepSeek 这版改成了 `chat.completions` 调用，更适合当前 DeepSeek 的 OpenAI-compatible 接口
+- 纯大模型模式下，本地原型默认还是基于文本输入，不直接上传图片给模型
+- PaddleOCR 返回的图片资源目前未自动下载打包
