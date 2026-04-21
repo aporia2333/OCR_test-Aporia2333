@@ -71,6 +71,19 @@ def _format_diagnostics(diagnostics: Dict[str, Any]) -> str:
     return json.dumps(diagnostics, ensure_ascii=False, indent=2)
 
 
+def _normalize_message_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") in {"text", "output_text"} and item.get("text"):
+                parts.append(str(item["text"]))
+        if parts:
+            return "\n".join(parts).strip()
+    return ""
+
+
 def classify_network_error(exc: BaseException, url: str) -> str:
     parsed = urlparse(url)
     host = parsed.hostname or ""
@@ -216,15 +229,21 @@ def run_custom_llm_chat_completion(
     except ValueError as exc:
         raise RuntimeError("OpenAI-compatible 请求失败：响应不是合法 JSON。") from exc
 
+    print(
+        f"[OPENAI_COMPAT_RESPONSE] status={response.status_code} "
+        f"body_preview={response.text[:300]!r}"
+    )
+
     choices = data.get("choices")
     if not choices:
         raise RuntimeError("LLM 返回为空。")
 
     message = choices[0].get("message") if isinstance(choices[0], dict) else None
     content = message.get("content") if isinstance(message, dict) else None
-    if not content:
+    text = _normalize_message_content(content)
+    if not (text or content):
         raise RuntimeError("未提取到 message.content。")
-    return content
+    return text or content
 
 
 def test_openai_compatible_endpoint(config: Dict[str, Any], timeout: int = 20) -> Dict[str, Any]:

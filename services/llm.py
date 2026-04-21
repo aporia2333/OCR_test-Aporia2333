@@ -84,6 +84,31 @@ def _openai_compatible_client(provider: str, provider_config: dict | None = None
     return OpenAI(**kwargs)
 
 
+def _normalize_message_content(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") in {"text", "output_text"} and item.get("text"):
+                    parts.append(str(item["text"]))
+            elif getattr(item, "text", None):
+                parts.append(str(item.text))
+        if parts:
+            return "\n".join(parts).strip()
+    return ""
+
+
+def _extract_chat_text_compatible(response) -> str:
+    if getattr(response, "choices", None):
+        message = response.choices[0].message
+        text = _normalize_message_content(getattr(message, "content", None))
+        if text:
+            return text
+    raise RuntimeError("LLM 返回为空，或 message.content 不是可解析文本。")
+
+
 def _extract_chat_text(response) -> str:
     if getattr(response, "choices", None):
         message = response.choices[0].message
@@ -103,6 +128,18 @@ def run_openai_compatible_llm(
     provider_config: dict | None = None,
 ) -> Tuple[str, Dict]:
     client = _openai_compatible_client(provider, provider_config)
+    provider_info = MODEL_REGISTRY.get(provider, {})
+    base_url_env = provider_info.get("base_url_env")
+    resolved_base_url = (
+        (provider_config or {}).get("base_url")
+        or (os.getenv(base_url_env) if base_url_env else None)
+        or provider_info.get("default_base_url")
+    )
+    print(
+        f"[OPENAI_COMPAT] provider={provider} model={model} "
+        f"base_url={resolved_base_url} temperature={temperature} output_format={output_format} "
+        f"conservative={conservative_formatting} text_chars={len(text)}"
+    )
 
     system_instruction = CONSERVATIVE_OCR_FORMAT_SYSTEM_PROMPT if conservative_formatting else GENERIC_SYSTEM_PROMPT
 
@@ -143,7 +180,7 @@ def run_openai_compatible_llm(
             {"role": "user", "content": user_text},
         ],
     )
-    output_text = _extract_chat_text(response)
+    output_text = _extract_chat_text_compatible(response)
 
     if output_format == "json":
         try:

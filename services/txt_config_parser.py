@@ -112,6 +112,7 @@ def parse_multi_api_txt_config(text: str) -> Dict[str, Any]:
             "source": "uploaded_txt",
             "api_url": "",
             "token": "",
+            "disable_proxy": "true",
         },
         "deepseek": {
             "source": "uploaded_txt",
